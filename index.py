@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 @app.route("/produtos", methods=["GET"])
 def get_produtos():
-    token = col_bling.find_one({"_id": 0})["token"]
+    token = col_bling.find_one({"_id": 0})["token"] 
     pagina = request.args.get('pagina')
     limite = request.args.get('limite')
 
@@ -103,10 +103,7 @@ def callback():
             {"$set": {"token": response.json()["access_token"]}}
         )
     return jsonify(
-        {
-            "msg": "token gerado com sucesso!",
-            "token": response.json()["access_token"]
-        }
+       response.json()
     )
 
 
