@@ -1,9 +1,6 @@
-import requests
+lista = list(range(1, 101))
 
-response = requests.get('https://integracao-bling-andre.vercel.app/produtos?pagina=1&limite=5')
+nova_lista = lista[95: 105]
 
-if response.status_code == 200:
-    for data in response.json():
-        print(data.get('custo'))
-else:
-    print('error')
+
+print(nova_lista)

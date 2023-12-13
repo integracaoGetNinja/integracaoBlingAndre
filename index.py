@@ -18,11 +18,12 @@ app = Flask(__name__)
 
 @app.route("/produtos", methods=["GET"])
 def get_produtos():
-    token = col_bling.find_one({"_id": 0})["token"] 
+    token = col_bling.find_one({"_id": 0})["token"]
     pagina = request.args.get('pagina')
-    limite = request.args.get('limite')
+    # limite = request.args.get('limite')
+    indexproduto = request.args.get('indexproduto')
 
-    url = f"https://www.bling.com.br/Api/v3/produtos?pagina={pagina}&limite={limite}"
+    url = f"https://www.bling.com.br/Api/v3/produtos?pagina={pagina}"
 
     headers = {
         'Authorization': f'Bearer {token}',
@@ -31,48 +32,79 @@ def get_produtos():
     payload = []
     datas = requests.request("GET", url, headers=headers)
 
-    id_produtos = []
+    if datas.status_code == 200:
+        id_produtos = []
 
-    for data in datas.json().get('data'):
+        lista = datas.json().get('data')[int(indexproduto): (int(indexproduto) + 5)]
+        for data in lista:
 
-        id_produtos.append(data.get('id'))
+            id_produtos.append(data.get('id'))
 
-        url = f"https://www.bling.com.br/Api/v3/produtos/fornecedores?idProduto={data.get('id')}"
+            url = f"https://www.bling.com.br/Api/v3/produtos/fornecedores?idProduto={data.get('id')}"
 
-        custoPadrao = 0
+            custoPadrao = 0
 
-        for custo in requests.request("GET", url, headers=headers).json().get('data'):
-            if custo.get('padrao'):
-                custoPadrao = custo.get('precoCusto')
+            for custo in requests.request("GET", url, headers=headers).json().get('data'):
+                if custo.get('padrao'):
+                    custoPadrao = custo.get('precoCusto')
 
-        payload.append({
-            'id': data.get('id'),
-            'sku': data.get('codigo'),
-            'titulo': data.get('nome'),
-            'preco': data.get('preco'),
-            'custo': custoPadrao,
-            'estoque': 0
-        })
+            payload.append({
+                'id': data.get('id'),
+                'sku': data.get('codigo'),
+                'titulo': data.get('nome'),
+                'preco': data.get('preco'),
+                'custo': custoPadrao,
+                'estoque': 0
+            })
 
-    url = "https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos%5B%5D="
-    isPrimeiro = True
+        url = "https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos%5B%5D="
+        isPrimeiro = True
 
-    for id_produto in id_produtos:
-        if isPrimeiro:
-            url += str(id_produto)
-            isPrimeiro = False
-        else:
-            url += f"&idsProdutos%5B%5D={id_produto}"
+        for id_produto in id_produtos:
+            if isPrimeiro:
+                url += str(id_produto)
+                isPrimeiro = False
+            else:
+                url += f"&idsProdutos%5B%5D={id_produto}"
 
-    payloadComEstoque = []
-    for data in requests.request("GET", url.replace("\n", ""), headers=headers).json().get('data'):
-        for produto in payload:
-            if produto.get('id') == data.get('produto').get('id'):
-                produto.update({'estoque': data.get('saldoFisicoTotal')})
-                payloadComEstoque.append(produto)
+        payloadComEstoque = []
+        for data in requests.request("GET", url.replace("\n", ""), headers=headers).json().get('data'):
+            for produto in payload:
+                if produto.get('id') == data.get('produto').get('id'):
+                    produto.update({'estoque': data.get('saldoFisicoTotal')})
+                    payloadComEstoque.append(produto)
 
-    return make_response(jsonify(payloadComEstoque), datas.status_code)
+        return make_response(jsonify(payloadComEstoque), datas.status_code)
 
+
+# def gerarOutroToken():
+#     refresh_token = col_bling.find_one({"_id": 1})["refresh_token"]
+#
+#     data = {
+#         'refresh_token': refresh_token,
+#         'grant_type': 'refresh_token',
+#
+#     }
+#
+#     url = 'https://www.bling.com.br/Api/v3/oauth/token'
+#     headers = {
+#         'Content-Type': 'application/x-www-form-urlencoded',
+#         'Accept': '1.0',
+#         'Authorization': f'Basic {config("BASIC_AUTHENTICATION")}'
+#     }
+#
+#     response = requests.post(url, headers=headers, data=data)
+#
+#     print('tentando...')
+#     print('response', response.status_code)
+#     print('refresh_token', refresh_token)
+#     if response.status_code == 200:
+#         print('deu certo!')
+#
+#         col_bling.update_one(
+#             {"_id": 0},
+#             {"$set": {"token": response.json().get('access_token')}}
+#         )
 
 @app.route("/callback")
 def callback():
@@ -97,13 +129,25 @@ def callback():
                 "token": response.json()["access_token"]
             }
         )
+
+        col_bling.insert_one(
+            {
+                "_id": 1,
+                "refresh_token": response.json()["refresh_token"]
+            }
+        )
     else:
         col_bling.update_one(
             {"_id": 0},
             {"$set": {"token": response.json()["access_token"]}}
         )
+
+        col_bling.update_one(
+            {"_id": 1},
+            {"$set": {"refresh_token": response.json()["refresh_token"]}}
+        )
     return jsonify(
-       response.json()
+        response.json()
     )
 
 
