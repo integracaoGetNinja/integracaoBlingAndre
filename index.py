@@ -157,9 +157,11 @@ def atualizarProduto():
         """,
     }
 
-    requests.post(url, headers=headers, data=data)
-
-    return jsonify({"msg": "ok"})
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 201:
+        return jsonify({"msg": "ok"})
+    else:
+        return jsonify({"msg": response.text})
 
 
 @app.route("/callback")
