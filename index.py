@@ -4,6 +4,8 @@ import requests
 import json
 from pymongo import MongoClient
 from decouple import config
+from base64 import b64encode
+import xml.etree.ElementTree as ET
 
 client = MongoClient(
     f"mongodb+srv://{config('USER_DB')}:{config('PASSWD_DB')}@cluterb.ypmgnks.mongodb.net/?retryWrites=true&w=majority"
@@ -75,36 +77,107 @@ def get_produtos():
                     payloadComEstoque.append(produto)
 
         return make_response(jsonify(payloadComEstoque), datas.status_code)
+    else:
+        gerarOutroToken()
+        get_produtos()
 
 
-# def gerarOutroToken():
-#     refresh_token = col_bling.find_one({"_id": 1})["refresh_token"]
-#
-#     data = {
-#         'refresh_token': refresh_token,
-#         'grant_type': 'refresh_token',
-#
-#     }
-#
-#     url = 'https://www.bling.com.br/Api/v3/oauth/token'
-#     headers = {
-#         'Content-Type': 'application/x-www-form-urlencoded',
-#         'Accept': '1.0',
-#         'Authorization': f'Basic {config("BASIC_AUTHENTICATION")}'
-#     }
-#
-#     response = requests.post(url, headers=headers, data=data)
-#
-#     print('tentando...')
-#     print('response', response.status_code)
-#     print('refresh_token', refresh_token)
-#     if response.status_code == 200:
-#         print('deu certo!')
-#
-#         col_bling.update_one(
-#             {"_id": 0},
-#             {"$set": {"token": response.json().get('access_token')}}
-#         )
+def gerarOutroToken():
+    url = 'https://www.bling.com.br/Api/v3/oauth/token?'
+
+    # Credenciais do client app (substitua [client_id] e [client_secret] pelos valores reais)
+    client_id = 'ee9ad705e01e6efc0cfa35975ff5a1e4cdfc5d28'
+    client_secret = '60751422b162e28358153f5c4bbbf4ef7064301e489a78523030bb1d73f2'
+
+    refresh_token = col_bling.find_one({"_id": 1})["refresh_token"]
+
+    # Codifique as credenciais em base64
+    credentials = f"{client_id}:{client_secret}"
+    base64_credentials = b64encode(credentials.encode()).decode('utf-8')
+
+    # Parâmetros da requisição
+    data = {
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token
+    }
+
+    # Headers da requisição
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': '1.0',
+        'Authorization': f'Basic {base64_credentials}'
+    }
+
+    # Faça a requisição POST
+    response = requests.post(url, data=data, headers=headers)
+
+    payload = response.json()
+
+    novo_refresh_token = payload.get('refresh_token')
+    novo_token = payload.get('access_token')
+
+    col_bling.update_one(
+        {"_id": 0},
+        {"$set": {"token": novo_token}}
+    )
+
+    col_bling.update_one(
+        {"_id": 1},
+        {"$set": {"refresh_token": novo_refresh_token}}
+    )
+
+    print('token gerado', novo_token, 'refresh', refresh_token)
+
+
+@app.route("/produtos", methods=["PUT"])
+def atualizarProduto():
+    args = request.args
+    sku = args.get('sku')
+    novo_preco = args.get('novo_preco')
+    novo_custo = args.get('novo_custo')
+    novo_estoque = args.get('novo_estoque')
+
+    apikey = "49be5976c509a005f6394e0f4d1785634bb7a4bdbfc14465c0412f4863438fb70453d9ab"
+
+    url = f"https://bling.com.br/Api/v2/produto/{sku}/xml/"
+    params = {"apikey": apikey}
+
+    response = requests.get(url, params=params)
+
+    # Verifica se a requisição foi bem-sucedida (código 200)
+    if response.status_code == 200:
+        # A resposta está disponível em formato JSON
+        xml_string = response.text
+
+        # Parse do XML
+        root = ET.fromstring(xml_string)
+
+        # Altere os valores conforme necessário
+        if novo_preco:
+            root.find(".//preco").text = novo_preco
+        if novo_custo:
+            root.find(".//precocusto").text = novo_custo
+        if novo_estoque:
+            root.find(".//estoqueatual").text = novo_estoque
+
+        modified_xml = ET.tostring(root, encoding="utf-8").decode("utf-8")
+
+        url = f"https://bling.com.br/Api/v2/produto/{sku}/json/"
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        data = {
+            "apikey": apikey,
+            "xml": modified_xml,
+        }
+
+        requests.post(url, headers=headers, data=data)
+        return jsonify({"msg": "ok"})
+    else:
+        return jsonify({"msg": f"Erro na requisição. Código de status: {response.status_code}"})
+
 
 @app.route("/callback")
 def callback():
