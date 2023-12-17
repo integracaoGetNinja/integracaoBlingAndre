@@ -139,42 +139,27 @@ def atualizarProduto():
 
     apikey = "49be5976c509a005f6394e0f4d1785634bb7a4bdbfc14465c0412f4863438fb70453d9ab"
 
-    url = f"https://bling.com.br/Api/v2/produto/{sku}/xml/"
-    params = {"apikey": apikey}
+    url = f"https://bling.com.br/Api/v2/produto/{sku}/json/"
 
-    response = requests.get(url, params=params)
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
 
-    # Verifica se a requisição foi bem-sucedida (código 200)
-    if response.status_code == 200:
-        # A resposta está disponível em formato JSON
-        xml_string = response.text
+    data = {
+        "apikey": apikey,
+        "xml": f"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <produto>
+            <vlr_unit>{novo_preco}</vlr_unit>
+            <preco_custo>{novo_custo}</preco_custo>
+            <estoque>{novo_estoque}</estoque>
+        </produto>
+        """,
+    }
 
-        # Parse do XML
-        root = ET.fromstring(xml_string)
+    requests.post(url, headers=headers, data=data)
 
-        # Altere os valores conforme necessário
-        if novo_preco:
-            root.find(".//preco").text = novo_preco
-        if novo_custo:
-            root.find(".//precocusto").text = novo_custo
-        if novo_estoque:
-            root.find(".//estoqueatual").text = novo_estoque
-
-        url = f"https://bling.com.br/Api/v2/produto/{sku}/json/"
-
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-
-        data = {
-            "apikey": apikey,
-            "xml": root,
-        }
-
-        requests.post(url, headers=headers, data=data)
-        return jsonify({"msg": root})
-    else:
-        return jsonify({"msg": f"Erro na requisição. Código de status: {response.status_code}"})
+    return jsonify({"msg": "ok"})
 
 
 @app.route("/callback")
