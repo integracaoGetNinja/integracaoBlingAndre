@@ -160,8 +160,6 @@ def atualizarProduto():
         if novo_estoque:
             root.find(".//estoqueatual").text = novo_estoque
 
-        modified_xml = ET.tostring(root, encoding="utf-8").decode("utf-8")
-
         url = f"https://bling.com.br/Api/v2/produto/{sku}/json/"
 
         headers = {
@@ -170,11 +168,11 @@ def atualizarProduto():
 
         data = {
             "apikey": apikey,
-            "xml": modified_xml,
+            "xml": root,
         }
 
         requests.post(url, headers=headers, data=data)
-        return jsonify({"msg": "ok"})
+        return jsonify({"msg": root})
     else:
         return jsonify({"msg": f"Erro na requisição. Código de status: {response.status_code}"})
 
