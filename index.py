@@ -37,7 +37,9 @@ def get_produtos():
             url = f"https://www.bling.com.br/Api/v3/produtos/fornecedores?idProduto={produto.get('id')}"
             dataCusto = requests.request("GET", url, headers=headers).json().get('data')
 
-            precoCusto = dataCusto[0].get('precoCusto')
+            for custo in dataCusto:
+                if custo.get('padrao'):
+                    precoCusto = custo.get('precoCusto')
 
             url = f"https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos%5B%5D={produto.get('id')}"
             dataEstoque = requests.request("GET", url, headers=headers).json().get('data')
