@@ -18,68 +18,44 @@ col_bling = db["col_bling"]
 app = Flask(__name__)
 
 
-@app.route("/produtos", methods=["GET"])
+@app.route("/produto", methods=["GET"])
 def get_produtos():
     token = col_bling.find_one({"_id": 0})["token"]
-    pagina = request.args.get('pagina')
-    # limite = request.args.get('limite')
-    indexproduto = request.args.get('indexproduto')
+    sku = request.args.get('sku')
 
-    url = f"https://www.bling.com.br/Api/v3/produtos?pagina={pagina}"
+    url = f"https://www.bling.com.br/Api/v3/produtos?codigo={sku}"
 
     headers = {
         'Authorization': f'Bearer {token}',
     }
+    try:
+        data = requests.request("GET", url, headers=headers).json().get('data')
 
-    payload = []
-    datas = requests.request("GET", url, headers=headers)
+        if len(data) > 0:
+            produto = data[0]
 
-    if datas.status_code == 200:
-        id_produtos = []
+            url = f"https://www.bling.com.br/Api/v3/produtos/fornecedores?idProduto={produto.get('id')}"
+            dataCusto = requests.request("GET", url, headers=headers).json().get('data')
 
-        lista = datas.json().get('data')[int(indexproduto): (int(indexproduto) + 5)]
-        for data in lista:
+            precoCusto = dataCusto[0].get('precoCusto')
 
-            id_produtos.append(data.get('id'))
+            url = f"https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos%5B%5D={produto.get('id')}"
+            dataEstoque = requests.request("GET", url, headers=headers).json().get('data')
 
-            url = f"https://www.bling.com.br/Api/v3/produtos/fornecedores?idProduto={data.get('id')}"
+            estoque = dataEstoque[0].get('saldoFisicoTotal')
 
-            custoPadrao = 0
-
-            for custo in requests.request("GET", url, headers=headers).json().get('data'):
-                if custo.get('padrao'):
-                    custoPadrao = custo.get('precoCusto')
-
-            payload.append({
-                'id': data.get('id'),
-                'sku': data.get('codigo'),
-                'titulo': data.get('nome'),
-                'preco': data.get('preco'),
-                'custo': custoPadrao,
-                'estoque': 0
+            return jsonify({
+                'id': produto.get('id'),
+                'sku': produto.get('codigo'),
+                'titulo': produto.get('nome'),
+                'preco': produto.get('preco'),
+                'custo': precoCusto,
+                'estoque': estoque
             })
-
-        url = "https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos%5B%5D="
-        isPrimeiro = True
-
-        for id_produto in id_produtos:
-            if isPrimeiro:
-                url += str(id_produto)
-                isPrimeiro = False
-            else:
-                url += f"&idsProdutos%5B%5D={id_produto}"
-
-        payloadComEstoque = []
-        for data in requests.request("GET", url.replace("\n", ""), headers=headers).json().get('data'):
-            for produto in payload:
-                if produto.get('id') == data.get('produto').get('id'):
-                    produto.update({'estoque': data.get('saldoFisicoTotal')})
-                    payloadComEstoque.append(produto)
-
-        return make_response(jsonify(payloadComEstoque), datas.status_code)
-    else:
+        else:
+            jsonify({"msg": "produto não encontrado!"})
+    except:
         gerarOutroToken()
-        get_produtos()
 
 
 def gerarOutroToken():
@@ -127,6 +103,7 @@ def gerarOutroToken():
     )
 
     print('token gerado', novo_token, 'refresh', refresh_token)
+    get_produtos()
 
 
 @app.route("/produtos", methods=["PUT"])
