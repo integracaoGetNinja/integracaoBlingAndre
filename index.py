@@ -143,6 +143,36 @@ def atualizarProduto():
         return jsonify({"msg": response.text})
 
 
+@app.route("/clientes")
+def puxarClinentes():
+    pagina = 1
+
+    payload = []
+    while True:
+
+        url = f"https://bling.com.br/Api/v2/contatos/page={pagina}/json/?apikey=49be5976c509a005f6394e0f4d1785634bb7a4bdbfc14465c0412f4863438fb70453d9ab"
+
+        response = requests.request("GET", url).json().get('retorno')
+
+        if not response.get('contatos'):
+            break
+
+        for contato in response.get('contatos'):
+            payload.append(
+                {
+                    "cnpj": contato.get('contato').get('cnpj'),
+                    "nome": contato.get('contato').get('nome'),
+                    "celular": contato.get('contato').get('celular'),
+                    "dataInclusao": contato.get('contato').get('dataInclusao')
+                }
+            )
+
+        pagina += 1
+
+    return payload
+
+
+
 @app.route("/callback")
 def callback():
     payload = request.args
