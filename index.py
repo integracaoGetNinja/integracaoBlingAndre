@@ -150,12 +150,21 @@ def puxarClinentes():
     url = f"https://bling.com.br/Api/v2/contatos/page={pagina}/json/?apikey=49be5976c509a005f6394e0f4d1785634bb7a4bdbfc14465c0412f4863438fb70453d9ab"
 
     response = requests.request("GET", url).json()
-    
+
     return response
 
 
+@app.route("/estoque")
+def puxarProdutos():
+    pagina = request.args.get('pagina')
+    url = f"https://bling.com.br/Api/v2/produtos/page={pagina}/json/?apikey=49be5976c509a005f6394e0f4d1785634bb7a4bdbfc14465c0412f4863438fb70453d9ab&estoque=S"
 
+    payload = {}
+    headers = {}
 
+    response = requests.request("GET", url, headers=headers, data=payload)
+
+    return response.json()
 
 
 @app.route("/callback")
